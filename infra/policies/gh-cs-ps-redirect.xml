@@ -1,0 +1,282 @@
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  POLÍTICA: GH_Redirection_with_CS_and_PS.xml                                 ║
+║  PROPÓSITO: Protección completa con Prompt Shield + Content Safety           ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  DESCRIPCIÓN:                                                                ║
+║  Esta política combina AMBAS capas de seguridad para ofrecer la máxima       ║
+║  protección. Primero detecta ataques de jailbreak (Prompt Shield) y luego    ║
+║  analiza toxicidad del contenido (Content Safety) antes de permitir que      ║
+║  el prompt llegue al modelo de IA.                                           ║
+║                                                                              ║
+║  FLUJO DE SEGURIDAD EN DOS CAPAS:                                            ║
+║                                                                              ║
+║  ┌──────────┐      ┌───────────────┐      ┌──────────────────┐               ║
+║  │  Cliente │ ────▶│  Azure APIM   │─────▶│  Prompt Shield   │               ║
+║  └──────────┘      └───────┬───────┘      │  (1º Jailbreak)  │               ║
+║                            │              └────────┬─────────┘               ║
+║                            │   Si no es ataque     │                         ║
+║                            │◀──────────────────────┘                         ║
+║                            │                                                 ║
+║                            ▼                                                 ║
+║                   ┌──────────────────┐                                       ║
+║                   │  Content Safety  │                                       ║
+║                   │  (2º Toxicidad)  │                                       ║
+║                   └────────┬─────────┘                                       ║
+║                            │                                                 ║
+║                            │   Si contenido OK                               ║
+║                            ▼                                                 ║
+║                   ┌─────────────────┐                                        ║
+║                   │  GitHub Models  │                                        ║
+║                   └─────────────────┘                                        ║
+║                                                                              ║
+║  ORDEN DE EJECUCIÓN (IMPORTANTE):                                            ║
+║  1. Prompt Shield PRIMERO: Detecta ataques de manipulación                   ║
+║  2. Content Safety DESPUÉS: Analiza toxicidad del contenido                  ║
+║                                                                              ║
+║  RAZÓN DEL ORDEN:                                                            ║
+║  Los ataques de jailbreak pueden intentar evadir Content Safety,             ║
+║  por lo que es más seguro detectarlos primero.                               ║
+║                                                                              ║
+║  COMPORTAMIENTO:                                                             ║
+║  - Si Prompt Shield detecta ataque → HTTP 400 (Prompt Shield Violation)      ║
+║  - Si Content Safety detecta toxicidad → HTTP 400 (Content Safety Violation) ║
+║  - Si algún servicio falla → HTTP 502 (Bad Gateway)                          ║
+║  - Si todo OK → Redirige a GitHub Models                                     ║
+║                                                                              ║
+║  CASOS DE USO:                                                               ║
+║  - Entornos de producción con máxima seguridad                               ║
+║  - Aplicaciones expuestas a usuarios no confiables                           ║
+║  - Cumplimiento de políticas corporativas de seguridad                       ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<policies>
+    <!-- Throttle, authorize, validate, cache, or transform the requests -->
+    <inbound>
+        <base />
+        
+        <!-- ============================================================== -->
+        <!-- PASO 1: PREPARACIÓN - Leer y extraer el prompt del usuario     -->
+        <!-- ============================================================== -->
+        
+        <!-- 
+            Leer el cuerpo de la petición como JSON.
+            IMPORTANTE: preserveContent:true evita que el body se consuma
+            y permite reenviarlo al backend posteriormente.
+        -->
+        <set-variable name="requestBody" value="@(context.Request.Body.As<JObject>(preserveContent: true))" />
+        
+        <!-- 
+            Extraer el ÚLTIMO mensaje del usuario.
+            A diferencia de Content Safety (que usa el primer mensaje),
+            aquí extraemos el último para analizar el prompt más reciente
+            en una conversación multi-turno.
+        -->
+        <set-variable name="userPrompt" value="@{
+            JObject body = (JObject)context.Variables[&quot;requestBody&quot;];
+            if (body[&quot;messages&quot;] != null && body[&quot;messages&quot;].HasValues)
+            {
+                var lastMessage = body[&quot;messages&quot;].Last;
+                return (string)lastMessage[&quot;content&quot;];
+            }
+            return &quot;&quot;;
+        }" />
+        
+        <!-- ============================================================== -->
+        <!-- PASO 2: PROMPT SHIELD - Primera capa de seguridad              -->
+        <!-- Detecta intentos de jailbreak e inyección de prompts           -->
+        <!-- ============================================================== -->
+        
+        <!-- 
+            Construir el payload para Prompt Shield.
+            - userPrompt: El texto del usuario a analizar
+            - documents: Array vacío (podría contener documentos adicionales)
+        -->
+        <set-variable name="shieldRequestBody" value="@{
+            var prompt = (string)context.Variables[&quot;userPrompt&quot;];
+            JObject json = new JObject(
+                new JProperty(&quot;userPrompt&quot;, prompt),
+                new JProperty(&quot;documents&quot;, new JArray())
+            );
+            return json.ToString();
+        }" />
+        
+        <!-- 
+            Llamada a la API de Prompt Shield.
+            - Endpoint: /contentsafety/text:shieldPrompt
+            - ignore-error: true → Si falla, no bloquea el flujo
+            - timeout: 20 segundos para evitar latencias largas
+        -->
+        <send-request mode="new" response-variable-name="shieldResponse" timeout="20" ignore-error="true">
+            <set-url>{{promptshield-endpoint}}</set-url>
+            <set-method>POST</set-method>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@((string)context.Variables["shieldRequestBody"])</set-body>
+            <authentication-managed-identity resource="https://cognitiveservices.azure.com/" />
+        </send-request>
+        
+        <!-- 
+            Parsear la respuesta de Prompt Shield y extraer attackDetected.
+            La respuesta tiene la estructura:
+            {
+                "userPromptAnalysis": {
+                    "attackDetected": true/false
+                }
+            }
+        -->
+        <set-variable name="isAttack" value="@{
+            var response = (IResponse)context.Variables[&quot;shieldResponse&quot;];
+            if (response.StatusCode == 200)
+            {
+                var body = response.Body.As&lt;JObject&gt;();
+                if (body[&quot;userPromptAnalysis&quot;] != null &amp;&amp; body[&quot;userPromptAnalysis&quot;][&quot;attackDetected&quot;] != null)
+                {
+                    return (bool)body[&quot;userPromptAnalysis&quot;][&quot;attackDetected&quot;];
+                }
+            }
+            return false;
+        }" />
+        
+        <!-- 
+            Si se detecta un ataque de jailbreak/injection,
+            bloquear la petición con HTTP 400 Bad Request.
+        -->
+        <choose>
+            <when condition="@((bool)context.Variables["isAttack"])">
+                <return-response>
+                    <set-status code="400" reason="Prompt Shield Violation" />
+                    <set-body>{
+                        "blocked_by": "Azure Prompt Shield",
+                        "error": "Tu mensaje ha sido bloqueado por las políticas de seguridad.",
+                        "details": "Se detectó un intento de jailbreak o inyección de prompt."
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+        <!-- ============================================================== -->
+        <!-- PASO 3: CONTENT SAFETY - Segunda capa de seguridad             -->
+        <!-- Detecta contenido tóxico: odio, autolesión, sexual, violencia  -->
+        <!-- ============================================================== -->
+        
+        <!-- 
+            Enviar el prompt a la API de Content Safety para análisis.
+            - Endpoint: /contentsafety/text:analyze
+            - Categorías: Hate, SelfHarm, Sexual, Violence
+            - outputType: FourSeverityLevels (0, 2, 4, 6)
+        -->
+        <send-request mode="new" response-variable-name="safetyResponse" timeout="10" ignore-error="false">
+            <set-url>{{content-safety-endpoint}}</set-url>
+            <set-method>POST</set-method>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+                var prompt = (string)context.Variables["userPrompt"];
+                // Protección contra null: enviar cadena vacía si el prompt es null
+                prompt = prompt ?? "";
+                
+                return new JObject(
+                    new JProperty("text", prompt),
+                    new JProperty("categories", new JArray("Hate", "SelfHarm", "Sexual", "Violence")),
+                    new JProperty("outputType", "FourSeverityLevels")
+                ).ToString();
+            }</set-body>
+            <!-- Usar Managed Identity en lugar de API Key -->
+            <authentication-managed-identity resource="https://cognitiveservices.azure.com/" />
+        </send-request>
+        
+        <!-- 
+            Verificar que Content Safety respondió correctamente (HTTP 200).
+            Si hay error de conexión, retornar HTTP 502 Bad Gateway.
+        -->
+        <choose>
+            <when condition="@(((IResponse)context.Variables["safetyResponse"]).StatusCode != 200)">
+                <return-response>
+                    <set-status code="502" reason="Content Safety Error" />
+                    <set-body>@{
+                        var response = ((IResponse)context.Variables["safetyResponse"]).Body.As<string>();
+                        return new JObject(
+                            new JProperty("error", "Error al conectar con Content Safety"),
+                            new JProperty("details", response)
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+        <!-- Parsear el resultado de Content Safety -->
+        <set-variable name="safetyResult" value="@(((IResponse)context.Variables["safetyResponse"]).Body.As<JObject>())" />
+        
+        <!-- 
+            Evaluar severidad de las categorías.
+            Si CUALQUIER categoría tiene severity > 0, bloquear la petición.
+            Niveles de severidad: 0 (seguro), 2 (bajo), 4 (medio), 6 (alto)
+        -->
+        <choose>
+            <when condition="@{
+                var result = (JObject)context.Variables["safetyResult"];
+                if (result["categoriesAnalysis"] == null) 
+                {
+                    return false;
+                }
+                
+                var categories = (JArray)result["categoriesAnalysis"];
+                return categories.Any(c => (int)c["severity"] > 0);
+            }">
+                <return-response>
+                    <set-status code="400" reason="Content Safety Violation" />
+                    <set-body>@{
+                        var result = (JObject)context.Variables["safetyResult"];
+                        var categories = (JArray)result["categoriesAnalysis"];
+                        var flagged = new JArray();
+                        foreach (var cat in categories)
+                        {
+                            if ((int)cat["severity"] > 0)
+                            {
+                                flagged.Add(new JObject(
+                                    new JProperty("category", (string)cat["category"]),
+                                    new JProperty("severity", (int)cat["severity"])
+                                ));
+                            }
+                        }
+                        return new JObject(
+                            new JProperty("blocked_by", "Azure Content Safety"),
+                            new JProperty("error", "Tu mensaje ha sido bloqueado por las políticas de seguridad de contenido."),
+                            new JProperty("flagged_categories", flagged)
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+        <!-- ============================================================== -->
+        <!-- PASO 4: AUTENTICACIÓN Y ENRUTAMIENTO                           -->
+        <!-- Si ambas capas de seguridad pasan, redirigir a GitHub Models   -->
+        <!-- ============================================================== -->
+        <set-header name="Authorization" exists-action="override">
+            <value>Bearer {{model-api-token}}</value>
+        </set-header>
+        <!-- Establezco la URL de destino y sobre-escribo el path de acuerdo con el valor esperado -->
+        <set-backend-service base-url="https://api.groq.com/openai/v1" />
+        <rewrite-uri template="/chat/completions" />
+        <!-- Elimino de la cabecera valores internos de APIM para que no se envien a Github -->
+        <set-header name="ocp-apim-subscription-key" exists-action="delete" />
+    </inbound>
+    <!-- Control if and how the requests are forwarded to services  -->
+    <backend>
+        <base />
+    </backend>
+    <!-- Customize the responses -->
+    <outbound>
+        <base />
+    </outbound>
+    <!-- Handle exceptions and customize error responses  -->
+    <on-error>
+        <base />
+    </on-error>
+</policies>

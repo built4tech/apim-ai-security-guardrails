@@ -1,0 +1,1016 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# 🛡️ AI Security & Operations Dashboard\n---\n### GitHub Models · Azure API Management · Content Safety · Prompt Shield\n\n<div style=\"background: linear-gradient(135deg, #0078D4 0%, #5C2D91 100%); padding: 16px 24px; border-radius: 12px; margin-bottom: 8px;\">\n<span style=\"color: #fff; font-size: 14px;\">Monitorización en tiempo real de la plataforma de IA con capas de seguridad integradas.<br/>Tabla: <code style=\"background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; color: #fff;\">ApiManagementGatewayLogs</code> &nbsp;│&nbsp; API: <code style=\"background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; color: #fff;\">github-redirection</code> &nbsp;│&nbsp; Filtro: <code style=\"background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; color: #fff;\">POST</code></span>\n</div>",
+        "style": "upsell"
+      },
+      "name": "header-banner"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "a0e1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 14400000 },
+                { "durationMs": 43200000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 172800000 },
+                { "durationMs": 259200000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 1209600000 },
+                { "durationMs": 2592000000 }
+              ],
+              "allowCustom": true
+            },
+            "value": {
+              "durationMs": 86400000
+            },
+            "label": "⏱️ Rango de tiempo"
+          }
+        ],
+        "style": "above",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters-time"
+    },
+    {
+      "type": 11,
+      "content": {
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "links": [
+          {
+            "id": "tab-overview",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📊 Visión General",
+            "subTarget": "overview",
+            "style": "link"
+          },
+          {
+            "id": "tab-content-safety",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🔒 Content Safety",
+            "subTarget": "contentsafety",
+            "style": "link"
+          },
+          {
+            "id": "tab-prompt-shield",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🛡️ Prompt Shield",
+            "subTarget": "promptshield",
+            "style": "link"
+          },
+          {
+            "id": "tab-combined",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "⚔️ Vista Combinada",
+            "subTarget": "combined",
+            "style": "link"
+          },
+          {
+            "id": "tab-usage",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "👥 Análisis de Uso",
+            "subTarget": "usage",
+            "style": "link"
+          },
+          {
+            "id": "tab-tokens",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🪙 Tokens y Costes",
+            "subTarget": "tokens",
+            "style": "link"
+          },
+          {
+            "id": "tab-executive",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📋 Informe Ejecutivo",
+            "subTarget": "executive",
+            "style": "link"
+          }
+        ]
+      },
+      "name": "navigation-tabs"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 📊 Visión General de Actividad\n---"
+            },
+            "name": "section-1-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 1.1 Resumen de actividad",
+              "style": "upsell"
+            },
+            "name": "label-1-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    TotalRequests = count(),\n    SuccessfulRequests = countif(ResponseCode == 200),\n    BlockedByContentSafety = countif(ResponseCode == 400 and ResponseBody has \"Content Safety\"),\n    BlockedByPromptShield = countif(ResponseCode == 400 and ResponseBody has \"Prompt Shield\"),\n    BackendErrors = countif(ResponseCode == 502),\n    OtherErrors = countif(ResponseCode != 200 and ResponseCode != 400 and ResponseCode != 502),\n    AvgLatencyMs = round(avg(TotalTime), 0),\n    P95LatencyMs = round(percentile(TotalTime, 95), 0),\n    UniqueUsers = dcount(CallerIpAddress)",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Column1",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "rowLimit": 10,
+                "size": "auto"
+              }
+            },
+            "name": "query-1-1-dashboard"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 1.2 Evolución temporal de peticiones"
+            },
+            "name": "label-1-2"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    Total = count(),\n    Exitosas = countif(ResponseCode == 200),\n    Bloqueadas = countif(ResponseCode == 400),\n    Errores = countif(ResponseCode >= 500)\n    by bin(TimeGenerated, {TimeRange:grain})\n| order by TimeGenerated asc",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "areachart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "Exitosas", "color": "green" },
+                  { "seriesName": "Bloqueadas", "color": "redBright" },
+                  { "seriesName": "Errores", "color": "orange" },
+                  { "seriesName": "Total", "color": "blue" }
+                ],
+                "ySettings": {
+                  "min": 0
+                }
+              }
+            },
+            "name": "query-1-2-evolution"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 1.3 Tasa de éxito vs bloqueo"
+            },
+            "name": "label-1-3"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    Total = count(),\n    Exitosas = countif(ResponseCode == 200),\n    Bloqueadas = countif(ResponseCode == 400)\n    by bin(TimeGenerated, {TimeRange:grain})\n| extend\n    TasaExito = round(100.0 * Exitosas / Total, 1),\n    TasaBloqueo = round(100.0 * Bloqueadas / Total, 1)\n| project TimeGenerated, TasaExito, TasaBloqueo\n| order by TimeGenerated asc",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "linechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "TasaExito", "label": "% Éxito", "color": "green" },
+                  { "seriesName": "TasaBloqueo", "label": "% Bloqueo", "color": "redBright" }
+                ],
+                "ySettings": {
+                  "min": 0,
+                  "max": 100
+                },
+                "yAxis": "TasaExito"
+              }
+            },
+            "name": "query-1-3-rates"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "name": "group-overview"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 🔒 Seguridad — Content Safety\n---\n<div style=\"background: linear-gradient(90deg, #D13438 0%, #F2545B 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Detección de contenido tóxico: <strong>Hate</strong> · <strong>SelfHarm</strong> · <strong>Sexual</strong> · <strong>Violence</strong></span>\n</div>"
+            },
+            "name": "section-2-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 2.1 Peticiones bloqueadas por Content Safety (detalle)"
+            },
+            "name": "label-2-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where ResponseCode == 400\n| where Method == \"POST\"\n| where ResponseBody has \"Content Safety\"\n| extend\n    Prompt = extract(@\"\"\"content\"\":\\s*\"\"([^\"\"]+)\"\"\", 1, RequestBody),\n    BlockedBy = \"Content Safety\",\n    FlaggedCategories = parse_json(ResponseBody).flagged_categories\n| mv-expand FlaggedCategories\n| extend\n    Category = tostring(FlaggedCategories.category),\n    Severity = toint(FlaggedCategories.severity)\n| project TimeGenerated, CallerIpAddress, Prompt, BlockedBy, Category, Severity, TotalTime\n| order by TimeGenerated desc",
+              "size": 0,
+              "showAnalytics": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Severity",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": ">=", "thresholdValue": "4", "representation": "redBright", "text": "{0}" },
+                        { "operator": ">=", "thresholdValue": "2", "representation": "orange", "text": "{0}" },
+                        { "operator": "Default", "representation": "yellow", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "BlockedBy",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "Default", "thresholdValue": null, "representation": "Sev2", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "TotalTime",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "coldHot"
+                    },
+                    "numberFormat": {
+                      "unit": 23,
+                      "options": { "style": "decimal", "maximumFractionDigits": 0 }
+                    }
+                  },
+                  {
+                    "columnMatch": "Category",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "contains", "thresholdValue": "Hate", "representation": "4", "text": "⛔ {0}" },
+                        { "operator": "contains", "thresholdValue": "Violence", "representation": "4", "text": "💥 {0}" },
+                        { "operator": "contains", "thresholdValue": "SelfHarm", "representation": "Sev1", "text": "⚠️ {0}" },
+                        { "operator": "contains", "thresholdValue": "Sexual", "representation": "Sev2", "text": "🔞 {0}" },
+                        { "operator": "Default", "representation": "more", "text": "{0}" }
+                      ]
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "TimeGenerated", "sortOrder": 2 }
+                ]
+              }
+            },
+            "name": "query-2-1-blocked"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 2.2 Categorías más frecuentes"
+            },
+            "name": "label-2-2"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| where ResponseBody has \"Content Safety\"\n| extend HasHate = ResponseBody has_cs \"Hate\"\n| extend HasSelfHarm = ResponseBody has_cs \"SelfHarm\"\n| extend HasSexual = ResponseBody has_cs \"Sexual\"\n| extend HasViolence = ResponseBody has_cs \"Violence\"\n| summarize\n    Hate = countif(HasHate),\n    SelfHarm = countif(HasSelfHarm),\n    Sexual = countif(HasSexual),\n    Violence = countif(HasViolence),\n    Total = count()",
+              "size": 1,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "barchart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "Hate", "label": "Odio", "color": "redDark" },
+                  { "seriesName": "SelfHarm", "label": "Autolesión", "color": "orange" },
+                  { "seriesName": "Sexual", "label": "Sexual", "color": "magenta" },
+                  { "seriesName": "Violence", "label": "Violencia", "color": "red" }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "query-2-2-categories"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| where ResponseBody has \"Content Safety\"\n| summarize Violaciones = count() by bin(TimeGenerated, {TimeRange:grain})\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "2.3 Tendencia de violaciones de Content Safety",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "linechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "Violaciones", "color": "redBright" }
+                ],
+                "ySettings": { "min": 0 }
+              }
+            },
+            "customWidth": "50",
+            "name": "query-2-3-trend"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "contentsafety"
+      },
+      "name": "group-content-safety"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 🛡️ Seguridad — Prompt Shield (Jailbreak / Injection)\n---\n<div style=\"background: linear-gradient(90deg, #5C2D91 0%, #B4009E 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Detección de ataques de manipulación: <strong>Jailbreak</strong> · <strong>Prompt Injection</strong></span>\n</div>"
+            },
+            "name": "section-3-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 3.1 Intentos de jailbreak detectados (detalle)"
+            },
+            "name": "label-3-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where ResponseCode == 400\n| where Method == \"POST\"\n| where ResponseBody has \"Prompt Shield\"\n| extend\n    Prompt = extract(@\"\"\"content\"\":\\s*\"\"([^\"\"]+)\"\"\", 1, RequestBody),\n    BlockedBy = \"Prompt Shield\",\n    Category = \"Jailbreak/Injection\",\n    Severity = 10\n| project TimeGenerated, CallerIpAddress, Prompt, BlockedBy, Category, Severity, TotalTime\n| order by TimeGenerated desc",
+              "size": 0,
+              "showAnalytics": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Severity",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": ">=", "thresholdValue": "10", "representation": "redDark", "text": "🔴 {0} — CRÍTICO" },
+                        { "operator": "Default", "representation": "yellow", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "BlockedBy",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "Default", "representation": "Sev0", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Category",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "Default", "representation": "Sev0", "text": "🚨 {0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "TotalTime",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "coldHot"
+                    },
+                    "numberFormat": {
+                      "unit": 23,
+                      "options": { "style": "decimal", "maximumFractionDigits": 0 }
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "TimeGenerated", "sortOrder": 2 }
+                ]
+              }
+            },
+            "name": "query-3-1-jailbreak"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 3.2 Top IPs con más intentos de jailbreak"
+            },
+            "name": "label-3-2"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| where ResponseBody has \"Prompt Shield\"\n| summarize\n    IntentosJailbreak = count(),\n    PrimerIntento = min(TimeGenerated),\n    UltimoIntento = max(TimeGenerated)\n    by CallerIpAddress\n| order by IntentosJailbreak desc\n| take 20",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "IntentosJailbreak",
+                    "formatter": 8,
+                    "formatOptions": {
+                      "palette": "hotCold",
+                      "compositeBarSettings": {
+                        "labelText": "",
+                        "columnSettings": []
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "CallerIpAddress",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "Default", "representation": "Person", "text": "{0}" }
+                      ]
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "IntentosJailbreak", "sortOrder": 2 }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "query-3-2-top-ips"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| where ResponseBody has \"Prompt Shield\"\n| summarize Intentos = count() by bin(TimeGenerated, {TimeRange:grain})\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "3.3 Tendencia de intentos de jailbreak",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "areachart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "Intentos", "color": "purple" }
+                ],
+                "ySettings": { "min": 0 }
+              }
+            },
+            "customWidth": "50",
+            "name": "query-3-3-trend"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "promptshield"
+      },
+      "name": "group-prompt-shield"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## ⚔️ Seguridad — Vista Combinada\n---\n<div style=\"background: linear-gradient(90deg, #D13438 0%, #5C2D91 50%, #0078D4 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Análisis unificado de ambas capas de protección: <strong>Content Safety</strong> + <strong>Prompt Shield</strong></span>\n</div>"
+            },
+            "name": "section-4-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 4.1 Detalle de todos los bloqueos con categoría y severidad"
+            },
+            "name": "label-4-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where ResponseCode == 400\n| where Method == \"POST\"\n| where ResponseBody has \"Content Safety\" or ResponseBody has \"Prompt Shield\"\n| extend\n    Prompt = extract(@\"\"\"content\"\":\\s*\"\"([^\"\"]+)\"\"\", 1, RequestBody),\n    BlockedBy = case(\n        ResponseBody has \"Prompt Shield\", \"Prompt Shield\",\n        ResponseBody has \"Content Safety\", \"Content Safety\",\n        \"Unknown\"\n    ),\n    FlaggedCategories = parse_json(ResponseBody).flagged_categories\n| mv-expand FlaggedCategories\n| extend\n    Category = case(\n        BlockedBy == \"Prompt Shield\", \"Jailbreak/Injection\",\n        isnotempty(tostring(FlaggedCategories.category)), tostring(FlaggedCategories.category),\n        \"Unknown\"\n    ),\n    Severity = case(\n        BlockedBy == \"Prompt Shield\", 10,\n        toint(FlaggedCategories.severity)\n    )\n| project TimeGenerated, CallerIpAddress, Prompt, BlockedBy, Category, Severity, TotalTime\n| order by TimeGenerated desc",
+              "size": 0,
+              "showAnalytics": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Severity",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": ">=", "thresholdValue": "10", "representation": "redDark", "text": "🔴 {0}" },
+                        { "operator": ">=", "thresholdValue": "4", "representation": "redBright", "text": "🟠 {0}" },
+                        { "operator": ">=", "thresholdValue": "2", "representation": "orange", "text": "🟡 {0}" },
+                        { "operator": "Default", "representation": "yellow", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "BlockedBy",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": "contains", "thresholdValue": "Prompt Shield", "representation": "purple", "text": "🛡️ {0}" },
+                        { "operator": "contains", "thresholdValue": "Content Safety", "representation": "redBright", "text": "🔒 {0}" },
+                        { "operator": "Default", "representation": "gray", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Category",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        { "operator": "contains", "thresholdValue": "Jailbreak", "representation": "Sev0", "text": "🚨 {0}" },
+                        { "operator": "contains", "thresholdValue": "Hate", "representation": "Sev1", "text": "⛔ {0}" },
+                        { "operator": "contains", "thresholdValue": "Violence", "representation": "Sev1", "text": "💥 {0}" },
+                        { "operator": "contains", "thresholdValue": "SelfHarm", "representation": "Sev2", "text": "⚠️ {0}" },
+                        { "operator": "contains", "thresholdValue": "Sexual", "representation": "Sev2", "text": "🔞 {0}" },
+                        { "operator": "Default", "representation": "more", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "TotalTime",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "coldHot" },
+                    "numberFormat": {
+                      "unit": 23,
+                      "options": { "style": "decimal", "maximumFractionDigits": 0 }
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "Severity", "sortOrder": 2 }
+                ]
+              }
+            },
+            "name": "query-4-1-all-blocks"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 4.2 Distribución de bloqueos por tipo &nbsp;&nbsp;&nbsp; / &nbsp;&nbsp;&nbsp; 4.3 Top usuarios bloqueados"
+            },
+            "name": "label-4-2-4-3"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| extend BlockedBy = case(\n    ResponseBody has \"Prompt Shield\", \"Prompt Shield\",\n    ResponseBody has \"Content Safety\", \"Content Safety\",\n    \"Otro\"\n)\n| summarize Bloqueos = count() by BlockedBy",
+              "size": 1,
+              "title": "Distribución por capa de seguridad",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  { "seriesName": "Prompt Shield", "color": "purple" },
+                  { "seriesName": "Content Safety", "color": "redBright" },
+                  { "seriesName": "Otro", "color": "gray" }
+                ]
+              }
+            },
+            "customWidth": "40",
+            "name": "query-4-2-distribution"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 400\n| extend BlockedBy = case(\n    ResponseBody has \"Prompt Shield\", \"Prompt Shield\",\n    ResponseBody has \"Content Safety\", \"Content Safety\",\n    \"Otro\"\n)\n| summarize\n    TotalBloqueos = count(),\n    BloqueosPorJailbreak = countif(BlockedBy == \"Prompt Shield\"),\n    BloqueosPorToxicidad = countif(BlockedBy == \"Content Safety\")\n    by CallerIpAddress\n| order by TotalBloqueos desc\n| take 20",
+              "size": 0,
+              "title": "Usuarios con más bloqueos (indicador de abuso)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TotalBloqueos",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "hotCold" }
+                  },
+                  {
+                    "columnMatch": "BloqueosPorJailbreak",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "purpleBlue" }
+                  },
+                  {
+                    "columnMatch": "BloqueosPorToxicidad",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "redGreen" }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "TotalBloqueos", "sortOrder": 2 }
+                ]
+              }
+            },
+            "customWidth": "60",
+            "name": "query-4-3-top-users"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "combined"
+      },
+      "name": "group-combined"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 👥 Análisis de Uso\n---\n<div style=\"background: linear-gradient(90deg, #0078D4 0%, #00B7C3 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Patrones de uso de la plataforma: usuarios, modelos y actividad horaria</span>\n</div>"
+            },
+            "name": "section-6-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 6.1 Actividad por usuario (IP) — Top 20"
+            },
+            "name": "label-6-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    TotalPeticiones = count(),\n    Exitosas = countif(ResponseCode == 200),\n    Bloqueadas = countif(ResponseCode == 400),\n    PrimeraActividad = min(TimeGenerated),\n    UltimaActividad = max(TimeGenerated)\n    by CallerIpAddress\n| extend TasaBloqueo = round(100.0 * Bloqueadas / TotalPeticiones, 1)\n| order by TotalPeticiones desc\n| take 20",
+              "size": 0,
+              "showAnalytics": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TotalPeticiones",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "blue" }
+                  },
+                  {
+                    "columnMatch": "Exitosas",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "green" }
+                  },
+                  {
+                    "columnMatch": "Bloqueadas",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "red" }
+                  },
+                  {
+                    "columnMatch": "TasaBloqueo",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": ">=", "thresholdValue": "50", "representation": "redBright", "text": "⚠️ {0}%" },
+                        { "operator": ">=", "thresholdValue": "25", "representation": "orange", "text": "{0}%" },
+                        { "operator": "Default", "representation": "green", "text": "{0}%" }
+                      ]
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "TotalPeticiones", "sortOrder": 2 }
+                ]
+              }
+            },
+            "name": "query-6-1-users"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where isnotempty(RequestBody)\n| extend Model = extract(@\"\"\"model\"\":\\s*\"\"([^\"\"]+)\"\"\", 1, RequestBody)\n| where isnotempty(Model)\n| summarize\n    Peticiones = count(),\n    Exitosas = countif(ResponseCode == 200),\n    AvgLatencyMs = round(avg(TotalTime), 0)\n    by Model\n| order by Peticiones desc",
+              "size": 1,
+              "title": "6.2 Modelos de IA más utilizados",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "barchart",
+              "chartSettings": {
+                "xAxis": "Model",
+                "yAxis": "Peticiones",
+                "seriesLabelSettings": [
+                  { "seriesName": "Peticiones", "color": "blue" },
+                  { "seriesName": "Exitosas", "color": "green" }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "query-6-2-models"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| extend HoraUTC = hourofday(TimeGenerated)\n| summarize Peticiones = count() by HoraUTC\n| order by HoraUTC asc",
+              "size": 1,
+              "title": "6.3 Distribución horaria de uso (UTC)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "categoricalbar",
+              "chartSettings": {
+                "xAxis": "HoraUTC",
+                "seriesLabelSettings": [
+                  { "seriesName": "Peticiones", "color": "turquoise" }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "query-6-3-hourly"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "usage"
+      },
+      "name": "group-usage"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 🪙 Análisis de Tokens y Costes\n---\n<div style=\"background: linear-gradient(90deg, #107C10 0%, #00B7C3 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Consumo de tokens por modelo y usuario — Visibilidad de costes operativos</span>\n</div>"
+            },
+            "name": "section-7-title"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 200\n| where isnotempty(BackendResponseBody)\n| extend\n    TotalTokens = toint(extract(@\"\"\"total_tokens\"\":(\\d+)\", 1, BackendResponseBody)),\n    Model = extract(@\"\"\"model\"\":\\s*\"\"([^\"\"]+)\"\"\", 1, BackendResponseBody)\n| where isnotnull(TotalTokens)\n| summarize\n    Peticiones = count(),\n    TokensConsumidos = sum(TotalTokens),\n    AvgTokensPorPeticion = round(avg(TotalTokens), 0)\n    by bin(TimeGenerated, {TimeRange:grain}), Model\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "7.2 Consumo total de tokens por día y modelo",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "areachart",
+              "chartSettings": {
+                "ySettings": { "min": 0 }
+              }
+            },
+            "name": "query-7-2-tokens-trend"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 7.3 Top usuarios por consumo de tokens"
+            },
+            "name": "label-7-3"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated {TimeRange}\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| where ResponseCode == 200\n| where isnotempty(BackendResponseBody)\n| extend TotalTokens = toint(extract(@\"\"\"total_tokens\"\":(\\d+)\", 1, BackendResponseBody))\n| where isnotnull(TotalTokens)\n| summarize\n    Peticiones = count(),\n    TokensTotales = sum(TotalTokens),\n    AvgTokens = round(avg(TotalTokens), 0),\n    MaxTokens = max(TotalTokens)\n    by CallerIpAddress\n| order by TokensTotales desc\n| take 20",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "TokensTotales",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "greenDark" }
+                  },
+                  {
+                    "columnMatch": "Peticiones",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "blue" }
+                  },
+                  {
+                    "columnMatch": "MaxTokens",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": ">=", "thresholdValue": "5000", "representation": "redBright", "text": "{0}" },
+                        { "operator": ">=", "thresholdValue": "2000", "representation": "orange", "text": "{0}" },
+                        { "operator": "Default", "representation": "green", "text": "{0}" }
+                      ]
+                    }
+                  }
+                ],
+                "sortBy": [
+                  { "itemKey": "TokensTotales", "sortOrder": 2 }
+                ]
+              }
+            },
+            "name": "query-7-3-top-users-tokens"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "tokens"
+      },
+      "name": "group-tokens"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## 📋 Informe Ejecutivo\n---\n<div style=\"background: linear-gradient(90deg, #323130 0%, #605E5C 100%); padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;\">\n<span style=\"color: #fff; font-size: 13px;\">Resumen ejecutivo para reporting y toma de decisiones</span>\n</div>"
+            },
+            "name": "section-11-title"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 11.1 Resumen semanal"
+            },
+            "name": "label-11-1"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "ApiManagementGatewayLogs\n| where TimeGenerated > ago(7d)\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    TotalPeticiones = count(),\n    PeticionesExitosas = countif(ResponseCode == 200),\n    BloqueosContentSafety = countif(ResponseCode == 400 and ResponseBody has \"Content Safety\"),\n    BloqueosPromptShield = countif(ResponseCode == 400 and ResponseBody has \"Prompt Shield\"),\n    ErroresBackend = countif(ResponseCode >= 500),\n    UsuariosUnicos = dcount(CallerIpAddress),\n    LatenciaMediaMs = round(avg(TotalTime), 0),\n    LatenciaP95Ms = round(percentile(TotalTime, 95), 0)\n| extend\n    TasaExito = round(100.0 * PeticionesExitosas / TotalPeticiones, 1),\n    TasaBloqueo = round(100.0 * (BloqueosContentSafety + BloqueosPromptShield) / TotalPeticiones, 1),\n    TotalBloqueos = BloqueosContentSafety + BloqueosPromptShield",
+              "size": 4,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": {
+                  "columnMatch": "Column1",
+                  "formatter": 1
+                },
+                "showBorder": false,
+                "size": "auto"
+              }
+            },
+            "name": "query-11-1-summary"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### 11.2 Comparativa semana actual vs semana anterior"
+            },
+            "name": "label-11-2"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let SemanaActual = ApiManagementGatewayLogs\n| where TimeGenerated > ago(7d)\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    Peticiones = count(),\n    Exitosas = countif(ResponseCode == 200),\n    Bloqueadas = countif(ResponseCode == 400),\n    AvgLatency = round(avg(TotalTime), 0)\n| extend Periodo = \"Semana actual\";\nlet SemanaAnterior = ApiManagementGatewayLogs\n| where TimeGenerated between (ago(14d) .. ago(7d))\n| where ApiId == \"github-redirection\"\n| where Method == \"POST\"\n| summarize\n    Peticiones = count(),\n    Exitosas = countif(ResponseCode == 200),\n    Bloqueadas = countif(ResponseCode == 400),\n    AvgLatency = round(avg(TotalTime), 0)\n| extend Periodo = \"Semana anterior\";\nunion SemanaActual, SemanaAnterior\n| project Periodo, Peticiones, Exitosas, Bloqueadas, AvgLatency",
+              "size": 0,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Periodo",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        { "operator": "contains", "thresholdValue": "actual", "representation": "blue", "text": "📅 {0}" },
+                        { "operator": "contains", "thresholdValue": "anterior", "representation": "gray", "text": "📅 {0}" },
+                        { "operator": "Default", "text": "{0}" }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Peticiones",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "blue" }
+                  },
+                  {
+                    "columnMatch": "Exitosas",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "green" }
+                  },
+                  {
+                    "columnMatch": "Bloqueadas",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "red" }
+                  },
+                  {
+                    "columnMatch": "AvgLatency",
+                    "formatter": 8,
+                    "formatOptions": { "palette": "coldHot" },
+                    "numberFormat": {
+                      "unit": 23,
+                      "options": { "style": "decimal", "maximumFractionDigits": 0 }
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "query-11-2-comparison"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "group-executive"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "\n---\n<div style=\"text-align: center; padding: 8px; opacity: 0.6; font-size: 12px;\">\n🛡️ AI Security Dashboard · GitHub Models + Azure APIM · Content Safety + Prompt Shield\n</div>"
+      },
+      "name": "footer"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/0e61e8c0-177d-44db-8466-53cce91136e8/resourceGroups/asclab/providers/Microsoft.OperationalInsights/workspaces/law-sentinel-france-central"
+  ],
+  "fromTemplateId": "custom-ai-security-dashboard",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

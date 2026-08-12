@@ -1,0 +1,181 @@
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  POLÍTICA: GH_Redirection_with_CS.xml                                        ║
+║  PROPÓSITO: Proxy con análisis de Content Safety (detección de toxicidad)    ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  DESCRIPCIÓN:                                                                ║
+║  Esta política intercepta las peticiones del cliente, extrae el prompt       ║
+║  del usuario y lo envía a Azure Content Safety para detectar contenido       ║
+║  tóxico antes de permitir que llegue al modelo de IA.                        ║
+║                                                                              ║
+║  FLUJO:                                                                      ║
+║  ┌──────────┐      ┌───────────────┐      ┌──────────────────┐               ║
+║  │  Cliente │ ────▶│  Azure APIM   │─────▶│  Content Safety  │               ║
+║  └──────────┘      └───────┬───────┘      │  (Toxicity)      │               ║
+║                            │              └────────┬─────────┘               ║
+║                            │   Si OK               │                         ║
+║                            │◀──────────────────────┘                         ║
+║                            ▼                                                 ║
+║                   ┌─────────────────┐                                        ║
+║                   │  GitHub Models  │                                        ║
+║                   └─────────────────┘                                        ║
+║                                                                              ║
+║  CATEGORÍAS ANALIZADAS:                                                      ║
+║  - Hate: Contenido de odio o discriminación                                  ║
+║  - SelfHarm: Contenido relacionado con autolesiones                          ║
+║  - Sexual: Contenido sexual explícito                                        ║
+║  - Violence: Contenido violento o que incita a la violencia                  ║
+║                                                                              ║
+║  COMPORTAMIENTO:                                                             ║
+║  - Si severity > 0 en cualquier categoría → Bloquea con HTTP 400             ║
+║  - Si Content Safety falla → Retorna HTTP 502                                ║
+║  - Si el contenido es seguro → Redirige a GitHub Models                      ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<!-- Add policies as children to the <inbound>, <outbound>, <backend>, and <on-error> elements -->
+<policies>
+    <!-- Throttle, authorize, validate, cache, or transform the requests -->
+    <inbound>
+        <base />
+        <!-- ============================================================== -->
+        <!-- PASO 1: PREPARACIÓN - Leer y extraer el prompt del usuario     -->
+        <!-- ============================================================== -->
+        <!-- 
+            Leer el cuerpo de la petición como JSON.
+            IMPORTANTE: preserveContent:true evita que el body se consuma
+            y permite reenviarlo al backend posteriormente.
+        -->
+        <set-variable name="requestBody" value="@(context.Request.Body.As<JObject>(preserveContent: true))" />
+        <!-- 
+            Extraer el contenido del primer mensaje del usuario.
+            Se usa el operador ? (null-conditional) para evitar excepciones
+            si el array messages está vacío o no existe.
+        -->
+        <set-variable name="userPrompt" value="@((string)((JObject)context.Variables["requestBody"])["messages"]?[0]?["content"])" />
+        <!-- ============================================================== -->
+        <!-- PASO 2: INSPECCIÓN - Llamar a Azure Content Safety             -->
+        <!-- ============================================================== -->
+        <!-- 
+            Enviar el prompt a la API de Content Safety para análisis.
+            - Endpoint: /contentsafety/text:analyze
+            - Categorías: Hate, SelfHarm, Sexual, Violence
+            - outputType: FourSeverityLevels (0, 2, 4, 6)
+        -->
+        <send-request mode="new" response-variable-name="safetyResponse" timeout="10" ignore-error="false">
+            <set-url>{{content-safety-endpoint}}</set-url>
+            <set-method>POST</set-method>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+                var prompt = (string)context.Variables["userPrompt"];
+                // Protección contra null: enviar cadena vacía si el prompt es null
+                prompt = prompt ?? "";
+                
+                return new JObject(
+                    new JProperty("text", prompt),
+                    new JProperty("categories", new JArray("Hate", "SelfHarm", "Sexual", "Violence")),
+                    new JProperty("outputType", "FourSeverityLevels")
+                ).ToString();
+            }</set-body>
+            <!-- Usar Managed Identity en lugar de API Key -->
+            <authentication-managed-identity resource="https://cognitiveservices.azure.com/" />
+        </send-request>
+        <!-- ============================================================== -->
+        <!-- PASO 3: DECISIÓN - Evaluar respuesta de Content Safety         -->
+        <!-- ============================================================== -->
+        <!-- 
+            Verificar que Content Safety respondió correctamente (HTTP 200).
+            Si hay error de conexión, retornar HTTP 502 Bad Gateway.
+        -->
+        <choose>
+            <when condition="@(((IResponse)context.Variables["safetyResponse"]).StatusCode != 200)">
+                <return-response>
+                    <set-status code="502" reason="Content Safety Error" />
+                    <set-body>@{
+                        var response = ((IResponse)context.Variables["safetyResponse"]).Body.As<string>();
+                        return new JObject(
+                            new JProperty("error", "Error al conectar con Content Safety"),
+                            new JProperty("details", response)
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        <!-- Parsear el resultado de Content Safety -->
+        <set-variable name="safetyResult" value="@(((IResponse)context.Variables["safetyResponse"]).Body.As<JObject>())" />
+        <!-- 
+            Evaluar severidad de las categorías.
+            Si CUALQUIER categoría tiene severity > 0, bloquear la petición.
+            Niveles de severidad: 0 (seguro), 2 (bajo), 4 (medio), 6 (alto)
+        -->
+        <choose>
+            <when condition="@{
+                var result = (JObject)context.Variables["safetyResult"];
+                if (result["categoriesAnalysis"] == null) 
+                {
+                    return false;
+                }
+                
+                var categories = (JArray)result["categoriesAnalysis"];
+                return categories.Any(c => (int)c["severity"] > 0);
+            }">
+                <return-response>
+                    <set-status code="400" reason="Content Safety Violation" />
+                    <set-body>@{
+                        var result = (JObject)context.Variables["safetyResult"];
+                        var categories = (JArray)result["categoriesAnalysis"];
+                        var flagged = new JArray();
+                        foreach (var cat in categories)
+                        {
+                            if ((int)cat["severity"] > 0)
+                            {
+                                flagged.Add(new JObject(
+                                    new JProperty("category", (string)cat["category"]),
+                                    new JProperty("severity", (int)cat["severity"])
+                                ));
+                            }
+                        }
+                        return new JObject(
+                            new JProperty("blocked_by", "Azure Content Safety"),
+                            new JProperty("error", "Tu mensaje ha sido bloqueado por las políticas de seguridad de contenido."),
+                            new JProperty("flagged_categories", flagged)
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        <!-- ============================================================== -->
+        <!-- PASO 4: AUTENTICACIÓN - Inyectar token de GitHub               -->
+        <!-- ============================================================== -->
+        <set-header name="Authorization" exists-action="override">
+            <value>Bearer {{model-api-token}}</value>
+        </set-header>
+        <!-- ============================================================== -->
+        <!-- PASO 5: ENRUTAMIENTO - Reescribir URI para GitHub Models       -->
+        <!-- ============================================================== -->
+        <!-- 
+            Transformar la ruta de APIM a la ruta esperada por GitHub.
+            Ejemplo: /ContentSafety/chat/completions → /chat/completions
+        -->
+        <!-- Establezco la URL de destino y sobre-escribo el path de acuerdo con el valor esperado -->
+        <set-backend-service base-url="https://api.groq.com/openai/v1" />
+        <rewrite-uri template="/chat/completions" />
+        <!-- Elimino de la cabecera valores internos de APIM para que no se envien a Github -->
+        <set-header name="ocp-apim-subscription-key" exists-action="delete" />
+    </inbound>
+    <!-- Control if and how the requests are forwarded to services  -->
+    <backend>
+        <base />
+    </backend>
+    <!-- Customize the responses -->
+    <outbound>
+        <base />
+    </outbound>
+    <!-- Handle exceptions and customize error responses  -->
+    <on-error>
+        <base />
+    </on-error>
+</policies>

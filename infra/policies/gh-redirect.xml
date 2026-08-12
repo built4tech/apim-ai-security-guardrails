@@ -1,0 +1,71 @@
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  POLÍTICA: GH_Redirection.xml                                                ║
+║  PROPÓSITO: Proxy simple hacia GitHub Models sin capas de seguridad          ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  DESCRIPCIÓN:                                                                ║
+║  Esta política actúa como un proxy transparente que redirige las peticiones  ║
+║  del cliente directamente a GitHub Models. No aplica ningún análisis de      ║
+║  seguridad sobre el contenido.                                               ║
+║                                                                              ║
+║  FLUJO:                                                                      ║
+║  ┌──────────┐         ┌───────────────┐         ┌─────────────────┐          ║
+║  │  Cliente │ ───────▶│  Azure APIM   │────────▶│  GitHub Models  │          ║
+║  └──────────┘         └───────────────┘         └─────────────────┘          ║
+║                                                                              ║
+║  BENEFICIOS:                                                                 ║
+║  - Centraliza la gestión del token de GitHub en APIM                         ║
+║  - Permite logging y métricas sin modificar el cliente                       ║
+║  - El cliente no necesita conocer el token de GitHub                         ║
+║                                                                              ║
+║  CASOS DE USO:                                                               ║
+║  - Desarrollo y pruebas sin restricciones de contenido                       ║
+║  - Escenarios donde la seguridad se gestiona en otra capa                    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<policies>
+    <!-- ================================================================== -->
+    <!-- SECCIÓN INBOUND: Procesa la petición antes de enviarla al backend -->
+    <!-- ================================================================== -->
+    <inbound>
+        <base />
+        <!-- 
+            INYECCIÓN DEL TOKEN DE GITHUB
+            ─────────────────────────────
+            Se añade el header Authorization con el token de GitHub.
+            Esto permite que el cliente no tenga que gestionar el token,
+            centralizando las credenciales en Azure API Management.
+            
+            NOTA DE SEGURIDAD: En producción, usar Named Values de APIM
+            en lugar de hardcodear el token: {{github-token}}
+        -->
+        <set-header name="Authorization" exists-action="override">
+            <value>Bearer {{model-api-token}}</value>
+        </set-header>
+        <!-- Establezco la URL de destino y sobre-escribo el path de acuerdo con el valor esperado -->
+        <set-backend-service base-url="https://api.groq.com/openai/v1" />
+        <rewrite-uri template="/chat/completions" />
+        <!-- Elimino de la cabecera valores internos de APIM para que no se envien a Github -->
+        <set-header name="ocp-apim-subscription-key" exists-action="delete" />
+    </inbound>
+    <!-- ================================================================== -->
+    <!-- SECCIÓN BACKEND: Configura la llamada al servicio de destino      -->
+    <!-- ================================================================== -->
+    <backend>
+        <base />
+    </backend>
+    <!-- ================================================================== -->
+    <!-- SECCIÓN OUTBOUND: Procesa la respuesta antes de enviarla al cliente -->
+    <!-- ================================================================== -->
+    <outbound>
+        <base />
+    </outbound>
+    <!-- ================================================================== -->
+    <!-- SECCIÓN ON-ERROR: Maneja errores durante el procesamiento         -->
+    <!-- ================================================================== -->
+    <on-error>
+        <base />
+    </on-error>
+</policies>
